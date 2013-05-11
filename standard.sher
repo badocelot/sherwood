@@ -1,5 +1,7 @@
 ;; Standard Functions for Sherwood
 
+;; NOTE: Most of this is adapted from the Wikipedia page on Lambda calculus
+
 ;; Give `:=` more friendly names
 (:= define :=)
 (:= def :=)
@@ -9,27 +11,12 @@
 (define identity .)
 
 ;; Compose function
-(define compose \f \g
-  (\x f g x))
-
-;; Some Church numerals stuff
-;;
-;; NOTE: Eventually Sherwood will handle numbers as primitives without giving
-;;       up the Church numeral properties
-(define 0 \f \x x)
-(define inc \n \f \x
-  (f ((n f) x)))
-
-(define + \m \n
-  (\f \x
-    ((m f) ((n f) x))))
-
-(define * \m \n \f
-  (m (n f)))
+(define comp \f \g
+  (\x f (g x)))
 
 ;; Church booleans
 (define true \x \y x)
-(define false 0)
+(define false \x \y y)
 
 (define and \p \q
   (p q p))
@@ -48,3 +35,63 @@
 ;;
 ;; (define if \p \tval \fval
 ;;   (or (and p tval) fval))
+
+;; Church predicates
+(define zero? \n
+  (n (\x false) true))
+
+(define <= \m \n
+  (zero? (- m n)))
+
+;; Some Church numerals stuff
+;;
+;; NOTE: Eventually Sherwood will handle numbers as primitives without giving up
+;;       the Church numeral properties
+(define 0 \f \x x)
+(define 1 \f \x (f x))
+(define 2 \f \x
+  (f (f x)))
+
+(define inc \n \f \x
+  (f ((n f) x)))
+
+(define dec \n
+  (\f \x
+    (n (\g \h
+         (h (g f)))
+       (\u x)
+       (\u u))))
+
+(define + \m \n
+  (m inc n))
+
+(define - \m \n
+  (m dec n))
+
+(define * \m \n
+  (\f
+    (m (n f))))
+
+(define expt \b \e
+  e b)
+
+;; Pairs
+;;
+;; NOTE: Eventually pairs and lists will be optimized and treated as primitives,
+;;       but without losing their properties as functions.
+(define cons \fst \snd
+  (\op op fst snd))
+
+(define first \pair
+  (pair true))
+
+(define rest \pair
+  (pair false))
+
+(define nil \x
+  true)
+
+(define nil? \p
+  (\x\y false))
+
+(define empty? nil?)

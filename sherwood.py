@@ -114,71 +114,30 @@ class application (list):
 
 # lambda abstraction
 class function:
-    def __init__ (self, c, arg_name, body):
-        self.__c = context(c)
-        self.__arg_name = arg_name
-        self.__body = application(body)
+    def __init__ (self, c, arg_name, body, name=None):
+        self.context = context(c)
+        self.argument = arg_name
+        self.body = application(body)
+        self.name = name
     
     def __call__ (self, c2, expr):
-        outer_context = context(c2, self.__c)
-        inner_context = context({self.__arg_name: expr if isinstance(expr, function) else evaluate(outer_context, expr)},
+        outer_context = context(c2, self.context)
+        inner_context = context({self.argument: expr if isinstance(expr, function) else evaluate(outer_context, expr)},
                                 outer_context)
         
-        result = evaluate(inner_context, self.__body)
+        result = evaluate(inner_context, self.body)
         return result
     
     def __str__ (self):
-        def reducer(x,y):
-            if isinstance(y, list):
-                y = "(" + reduce(reducer, y, '') + ")"
-
-            # Give a more traditional look to the lambdas
-            if y[0] == '\\':
-                y += ' .'
-            
-            return y if x == '' else x + ' ' + y
-        output = '\\%s . %s' % (self.__arg_name, reduce(reducer, self.__body, ''))
-        
-        if len(self.__c) > 0:
-            relevant_keys = ""
-            for key in self.__c:
-                def in_expr (key, expr):
-                    if key in expr: return True
-                    for subexpr in expr:
-                        if isinstance(subexpr, (application, list)):
-                            if in_expr(key, subexpr):
-                                return True
-                    return False
-                
-                if in_expr(key, self.__body):
-                    lines = str(self.__c[key]).split('\n')
-                    width = len("  %s => " % key)
-
-                    # Indent any lines after the first
-                    for i in range(1, len(lines)):
-                        lines[i] = ' ' * width + lines[i]
-                    
-                    relevant_keys += "\n  %s => %s" % (key,
-                                                       string.join(lines, '\n'))
-                    
-            if len(relevant_keys) > 0:
-                output += "\nwith:" + relevant_keys
-                
-        return output
+        if self.name is None:
+            return ":: <function> ::"
+        else:
+            return self.name
 
     def __repr__ (self):
-        return "function(%s, %s, %s)" % (repr(self.__c),
-                                         repr(self.__arg_name),
-                                         repr(self.__body))
-
-    def context (self):
-        return context(self.__c)
-
-    def body (self):
-        return application(self.__body)
-
-    def argument (self):
-        return self.__arg_name
+        return "function(%s, %s, %s)" % (repr(self.context),
+                                         repr(self.argument),
+                                         repr(self.body))
 
 
 def evaluate (c, expr):
@@ -235,6 +194,9 @@ def evaluate (c, expr):
                     # Redefining a := synonym is permissible
                     elif name in define_operators:
                         define_operators.remove(name)
+
+                    if value.name is None:
+                        value.name = name
                     
                     global_context.update({name: value})
 
@@ -292,7 +254,7 @@ def trampoline (f):
         f = f()
     return f
 
-def reader (instream, outstream=None, prompt=None, prev='', open_paren=0):
+def reader (instream, outstream=None, prompt='>> ', prev='', open_paren=0):
     if outstream is not None:
         outstream.write(prompt)
         outstream.flush()
@@ -328,21 +290,21 @@ def reader (instream, outstream=None, prompt=None, prev='', open_paren=0):
                            parse(prev + ' ' + line))
 
             if outstream is not None:
-                outstream.write(str(result)+"\n")
+                outstream.write("=> " + str(result) + "\n")
                 outstream.flush()
         except KeyError, e:
             print "Value not found:", e
 
-        return lambda: reader(instream, outstream, prompt)
+        return lambda: reader(instream, outstream)
     else:
-        return lambda: reader(instream, outstream, prompt,
+        return lambda: reader(instream, outstream, ".. ",
                               prev + ' ' + line, open_paren)
 
 def start_repl ():
     from sys import stdin, stdout
     
     try:
-        trampoline(reader(stdin, stdout, ">> "))
+        trampoline(reader(stdin, stdout))
     except KeyboardInterrupt:
         pass
 

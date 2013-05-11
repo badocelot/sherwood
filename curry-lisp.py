@@ -1,4 +1,5 @@
-from aastruct import aastruct
+### Curry Lisp
+### Take 5
 
 global_context = {
     ':=': '<special form ":=">'
@@ -14,14 +15,12 @@ class context:
 
         if isinstance(members, dict):
             self.__members = members.copy()
-        elif isinstance(members, aastruct):
-            self.__members = aastruct.dict(members).copy()
         elif isinstance(members, context):
             self.__members = members.__members
             if parent is None:
                 self.__parent = members.__parent
         else:
-            raise TypeError("members must be dict, context, or aastruct")
+            raise TypeError("members must be dict or context")
 
     def __getitem__ (self, key):
         if key in self.__members:
@@ -244,14 +243,18 @@ def trampoline (f):
         f = f()
     return f
 
-def read_line (prev, open_paren):
-    line = raw_input(">> ")
+def reader (stream, prompt=None, prev='', open_paren=0):
+    print prompt,
+    line = stream.readline()
 
-    for ch in line:
+    for ch, i in zip(line, range(len(line))):
         if ch == '(':
             open_paren += 1
         elif ch == ')':
             open_paren -= 1
+        elif ch == ';':
+            line = line[:i]
+            break
 
     if open_paren == 0:
         try:
@@ -259,15 +262,23 @@ def read_line (prev, open_paren):
                            parse(prev + ' ' + line))
         except KeyError, e:
             print "Value not found:", e
-        return lambda: read_line('', 0)
+        return lambda: reader(stream, prompt, '', 0)
     else:
-        return lambda: read_line(prev + ' ' + line, open_paren)
+        return lambda: reader(stream, prompt, prev + ' ' + line, open_paren)
 
-def start_repl():
+def start_repl ():
+    from sys import stdin
+
     try:
-        trampoline(read_line('', 0))
+        trampoline(reader(stdin, ">> "))
     except KeyboardInterrupt:
         pass
 
 if __name__ == '__main__':
+    from sys import argv
+    if len(argv) > 1:
+        for filename in argv[1:]:
+            filehandle = open(filename)
+            trampoline(reader(filehandle))
+
     start_repl()

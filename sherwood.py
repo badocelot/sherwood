@@ -1,5 +1,46 @@
-### Curry Lisp
-### Take 5
+#!/usr/bin/env python
+
+### Sherwood -- a curried LISP
+###
+### Date: 5/10/2013
+###
+### Supported:
+###   - REPL
+###   - Reading from files supplied as arguments before entering REPL
+###   - Defining globals, including new synonyms of the definition operation
+###   - Lambda abstraction
+###   - Lambda application
+###   - Beta-reduction in normal order
+###
+### Implementable In-Language:
+###   - Church booleans, numerals, and (most) associated operations
+###   - `if` as a function
+###   - Pairs and lists, I think
+###
+### Future Optimizations:
+###   - Reducing overhead of currying
+###   - 
+###
+### Future Features:
+###   - Alpha-conversion
+###   - Beta-reduction in applicative order
+###     - Is this actually needed?
+###   - Eta-conversion
+###   - Data types (without losing functionality of Church encoding)
+###     - Booleans
+###     - Decimals
+###     - Fractions
+###     - Integers
+###     - Strings
+###   - Defining macros
+###     - World allow for fn/lambda, f
+###   - I/O
+###   - Loading modules with `:require` (or similar)
+###
+### Unsupportable:
+###   - Multiarity
+
+import string
 
 global_context = {
     ':=': '<special form ":=">'
@@ -21,7 +62,7 @@ class context:
                 self.__parent = members.__parent
         else:
             raise TypeError("members must be dict or context")
-
+            
     def __getitem__ (self, key):
         if key in self.__members:
             return self.__members[key]
@@ -77,15 +118,15 @@ class function:
         self.__c = context(c)
         self.__arg_name = arg_name
         self.__body = application(body)
-
+    
     def __call__ (self, c2, expr):
         outer_context = context(c2, self.__c)
         inner_context = context({self.__arg_name: expr if isinstance(expr, function) else evaluate(outer_context, expr)},
                                 outer_context)
-
+        
         result = evaluate(inner_context, self.__body)
         return result
-
+    
     def __str__ (self):
         def reducer(x,y):
             if isinstance(y, list):
@@ -94,10 +135,10 @@ class function:
             # Give a more traditional look to the lambdas
             if y[0] == '\\':
                 y += ' .'
-
+            
             return y if x == '' else x + ' ' + y
         output = '\\%s . %s' % (self.__arg_name, reduce(reducer, self.__body, ''))
-
+        
         if len(self.__c) > 0:
             relevant_keys = ""
             for key in self.__c:
@@ -108,13 +149,21 @@ class function:
                             if in_expr(key, subexpr):
                                 return True
                     return False
-
+                
                 if in_expr(key, self.__body):
-                    relevant_keys += "\n  %s => %s" % (key, self.__c[key])
+                    lines = str(self.__c[key]).split('\n')
+                    width = len("  %s => " % key)
 
+                    # Indent any lines after the first
+                    for i in range(1, len(lines)):
+                        lines[i] = ' ' * width + lines[i]
+                    
+                    relevant_keys += "\n  %s => %s" % (key,
+                                                       string.join(lines, '\n'))
+                    
             if len(relevant_keys) > 0:
                 output += "\nwith:" + relevant_keys
-
+                
         return output
 
     def __repr__ (self):
@@ -138,7 +187,7 @@ def evaluate (c, expr):
             return hash(obj) and True
         except:
             return False
-
+    
     def islambda (expr):
         return isinstance(expr, str) and expr[0] == '\\'
 
@@ -149,7 +198,7 @@ def evaluate (c, expr):
         # No, absolutely *must* have both
         else:
             raise TypeError("lambda expression (\\) requires an argument and body")
-
+    
     # Symbol -- evaluate
     if isinstance(expr, str):
         if expr in define_operators:
@@ -186,7 +235,7 @@ def evaluate (c, expr):
                     # Redefining a := synonym is permissible
                     elif name in define_operators:
                         define_operators.remove(name)
-
+                    
                     global_context.update({name: value})
 
                 # Return the identity function.
@@ -201,7 +250,7 @@ def evaluate (c, expr):
             # reductively apply the arguments
             for i in range(1, len(expr)):
                 arg = expr[i]
-
+                
                 # A lambda expression consumes the rest of the expression
                 if islambda(arg):
                     return fn(c, make_lambda(arg[1:], expr[i+1:]))
@@ -217,7 +266,7 @@ def parse (code, start=0):
     i = start
     while i < len(code):
         ch = code[i]
-        if ch not in " ()\\":
+        if ch not in string.whitespace + "()\\":
             if isinstance(tree[-1], str):
                 tree[-1] += ch
             else:
@@ -229,7 +278,7 @@ def parse (code, start=0):
             break
         elif ch == '\\':
             tree += ['\\']
-        elif ch == ' ':
+        elif ch in string.whitespace:
             # Hack: stops variable building for last variable
             tree.append('')
 
@@ -243,34 +292,57 @@ def trampoline (f):
         f = f()
     return f
 
-def reader (stream, prompt=None, prev='', open_paren=0):
-    print prompt,
-    line = stream.readline()
+def reader (instream, outstream=None, prompt=None, prev='', open_paren=0):
+    if outstream is not None:
+        outstream.write(prompt)
+        outstream.flush()
+    line = instream.readline()
 
+    # Check for end of stream
+    if line == '':
+        if open_paren != 0:
+            print "IOError: EOF reached with open parentheses"
+            exit(1)
+        else:
+            return
+    line = line.strip('\n')
+    
     for ch, i in zip(line, range(len(line))):
         if ch == '(':
             open_paren += 1
         elif ch == ')':
             open_paren -= 1
+
+            # If the number of open parentheses ever goes negative,
+            # abandon the current work
+            if open_paren < 0:
+                print "Parse error: mismatched )\n"
+                return lambda: reader(instream, outstream, prompt)
         elif ch == ';':
             line = line[:i]
             break
-
+            
     if open_paren == 0:
         try:
-            print evaluate(context({}, parent=global_context),
+            result = evaluate(context({}, parent=global_context),
                            parse(prev + ' ' + line))
+
+            if outstream is not None:
+                outstream.write(str(result)+"\n")
+                outstream.flush()
         except KeyError, e:
             print "Value not found:", e
-        return lambda: reader(stream, prompt, '', 0)
+
+        return lambda: reader(instream, outstream, prompt)
     else:
-        return lambda: reader(stream, prompt, prev + ' ' + line, open_paren)
+        return lambda: reader(instream, outstream, prompt,
+                              prev + ' ' + line, open_paren)
 
 def start_repl ():
-    from sys import stdin
-
+    from sys import stdin, stdout
+    
     try:
-        trampoline(reader(stdin, ">> "))
+        trampoline(reader(stdin, stdout, ">> "))
     except KeyboardInterrupt:
         pass
 
@@ -280,5 +352,5 @@ if __name__ == '__main__':
         for filename in argv[1:]:
             filehandle = open(filename)
             trampoline(reader(filehandle))
-
+            
     start_repl()

@@ -1,0 +1,50 @@
+;; Standard Functions for Sherwood
+
+;; Give `:=` more friendly names
+(:= define :=)
+(:= def :=)
+
+;; Identity function
+(define . (\x x))
+(define identity .)
+
+;; Compose function
+(define compose \f \g
+  (\x f g x))
+
+;; Some Church numerals stuff
+;;
+;; NOTE: Eventually Sherwood will handle numbers as primitives without giving
+;;       up the Church numeral properties
+(define 0 \f \x x)
+(define inc \n \f \x
+  (f ((n f) x)))
+
+(define + \m \n
+  (\f \x
+    ((m f) ((n f) x))))
+
+(define * \m \n \f
+  (m (n f)))
+
+;; Church booleans
+(define true \x \y x)
+(define false 0)
+
+(define and \p \q
+  (p q p))
+(define or \p \q
+  (p p q))
+(define not \p
+  (p false true))
+
+;; Define `if` for familiarity -- it's actually an identity function (see below)!
+(define if \predicate \tval \fval
+  (predicate tval fval))
+
+;; Equivilantly:
+;; (define if \predicate
+;;   predicate)
+;;
+;; (define if \p \tval \fval
+;;   (or (and p tval) fval))

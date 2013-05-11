@@ -1,5 +1,5 @@
 ### Curry Lisp
-### Take 2
+### Take 3
 
 import string
 from aastruct import struct
@@ -89,9 +89,10 @@ def evaluate (context, expr):
         # Start with identity function
         fn = lambda c, x: x
 
-        for exp in expr:
-            fn = fn(context, exp)
-            if not callable(fn):
+        def reducer (fn, expr):
+            if isinstance(expr, str) and expr[0] == '\\':
+                return create_function(context, expr[1:],
+            elif not callable(fn):
                 if (isinstance(fn, list)):
                     fn = evaluate(fn, context=context)
                 elif fn in context:
@@ -103,10 +104,6 @@ def evaluate (context, expr):
 
 global_context = context({
     'nil': nil,
-    '\\': with_doc(lambda c, argName:
-                       lambda dummy, expr:
-                           create_function(c, argName, expr),
-                   '<special form "\\">'),
     ':=': with_doc(lambda c, name:
                        lambda dummy, expr:
                            global_context.update({
@@ -141,9 +138,6 @@ def parse (code, start=0):
         elif ch == '\\':
             if not isinstance(tree[-1], str):
                 tree += ['\\', '']
-            elif tree[-1] == '':
-                tree[-1] = '\\'
-                tree.append('')
             else:
                 tree[-1] += '\\'
         elif ch == ' ':
